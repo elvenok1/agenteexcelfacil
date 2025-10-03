@@ -3,7 +3,7 @@ import json
 from fastapi import FastAPI, Form, UploadFile, File, HTTPException
 from fastapi.responses import JSONResponse
 import google.generativeai as genai
-import requests # Para simular la llamada a la herramienta que busca el historial
+import requests
 
 # --- Inicialización de la Aplicación FastAPI ---
 app = FastAPI(
@@ -11,30 +11,42 @@ app = FastAPI(
     description="Recibe una consulta, una imagen opcional y un contexto para responder usando el modelo Gemini."
 )
 
-# --- Definición de la "Herramienta": Búsqueda de Historial ---
-# Esta función simula una llamada a otra API para obtener datos del estudiante.
-# En un caso real, la URL sería un servicio interno tuyo.
+# --- Definición de la "Herramienta": Búsqueda de Historial (CORREGIDO) ---
 def buscar_historial_estudiante(user_id: str) -> dict:
     """
-    Herramienta que busca información actualizada de un estudiante por su ID.
-    Simula una petición GET a un servicio de usuarios.
+    Herramienta que busca información actualizada de un estudiante por su ID y curso.
     """
     print(f"Ejecutando herramienta: Buscando historial para userId: {user_id}")
-    try:
-        # Reemplaza esta URL con la URL real de tu servicio de usuarios/estudiantes
-        # api_url = f"https://cursofacil.app/desktop_app/agente/resumen_estudiante.php/estudiantes/{user_id}"
-        # response = requests.get(api_url)
-        # response.raise_for_status() # Lanza un error si la petición falla (ej. 404, 500)
-        # return response.json()
+    
+    # URL base de tu herramienta
+    api_url_base = "https://cursofacil.app/desktop_app/agente/resumen_estudiante.php"
+    
+    # Diccionario con los parámetros que se añadirán a la URL
+    params = {
+        'id': user_id,
+        'course_id': 17  # ID del curso es una constante
+    }
 
+    try:
+        # La librería 'requests' construirá la URL final de forma segura:
+        # ...resumen_estudiante.php?id=2&course_id=17
+        response = requests.get(api_url_base, params=params)
         
+        # Lanza un error si la petición falla (ej. 404, 500)
+        response.raise_for_status() 
+        
+        # Devuelve la respuesta en formato JSON
+        return response.json()
 
     except requests.exceptions.RequestException as e:
         print(f"Error al llamar a la API de historial: {e}")
         return {"error": f"No se pudo obtener el historial del usuario {user_id}."}
+    except json.JSONDecodeError:
+        print(f"La respuesta de la herramienta no es un JSON válido. Respuesta: {response.text}")
+        return {"error": "La herramienta de historial devolvió una respuesta inesperada."}
+
 
 # --- Endpoint Principal de la API ---
-# Este es el punto de entrada que recibirá las solicitudes POST.
 @app.post("/generar-respuesta")
 async def generar_respuesta(
     # Usamos Form(...) para recibir datos de un formulario (multipart/form-data)
@@ -58,8 +70,6 @@ async def generar_respuesta(
     historial_actualizado = buscar_historial_estudiante(userId)
 
     # 3. Preparar el contenido (prompt) para Gemini
-    
-    # Decodificar la memoria (historial de chat) que viene como string
     try:
         chat_history = json.loads(memoria)
         if not isinstance(chat_history, list):
@@ -80,13 +90,10 @@ async def generar_respuesta(
     
     if imagen:
         print(f"Recibida imagen: {imagen.filename}, tipo: {imagen.content_type}")
-        # Validar que sea una imagen
         if not imagen.content_type.startswith("image/"):
              raise HTTPException(status_code=400, detail="El archivo adjunto no es una imagen válida.")
         
-        # Leer los bytes de la imagen para enviarlos a Gemini
         image_bytes = await imagen.read()
-        
         user_prompt_parts.append({
             "mime_type": imagen.content_type,
             "data": image_bytes
@@ -94,22 +101,18 @@ async def generar_respuesta(
 
     # 4. Enviar la solicitud a Gemini
     try:
-        # Seleccionamos un modelo que pueda manejar imágenes (gemini-1.5-flash es ideal)
         model = genai.GenerativeModel(model_name="gemini-1.5-flash")
         
-        # Creamos la conversación con el prompt del sistema y el historial
         conversation = model.start_chat(
             history=[
                 {"role": "user", "parts": [system_prompt]},
                 {"role": "model", "parts": ["¡Entendido! Estoy listo para ayudar con la información proporcionada."]},
-                *chat_history # Desempaquetamos el historial de chat aquí
+                *chat_history
             ]
         )
         
-        # Enviamos el nuevo mensaje del usuario
         response = await conversation.send_message_async(user_prompt_parts)
         
-        # Formatear la respuesta final
         output = {
             "status": "success",
             "userId": userId,
