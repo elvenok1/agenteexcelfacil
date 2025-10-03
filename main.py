@@ -22,21 +22,12 @@ def buscar_historial_estudiante(user_id: str) -> dict:
     print(f"Ejecutando herramienta: Buscando historial para userId: {user_id}")
     try:
         # Reemplaza esta URL con la URL real de tu servicio de usuarios/estudiantes
-        # api_url = f"https://api.tusistema.com/estudiantes/{user_id}"
+        # api_url = f"https://cursofacil.app/desktop_app/agente/resumen_estudiante.php/estudiantes/{user_id}"
         # response = requests.get(api_url)
         # response.raise_for_status() # Lanza un error si la petición falla (ej. 404, 500)
         # return response.json()
 
-        # --- Bloque de Simulación (borrar en producción) ---
-        if user_id == "2":
-            return {
-                "nombre": "Ronald Polonia",
-                "ultimo_tema_consultado": "Tablas dinámicas en Excel",
-                "nivel": "Intermedio"
-            }
-        else:
-            return {"error": "Estudiante no encontrado"}
-        # --- Fin del Bloque de Simulación ---
+        
 
     except requests.exceptions.RequestException as e:
         print(f"Error al llamar a la API de historial: {e}")
